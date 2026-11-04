@@ -1,0 +1,164 @@
+# Continuous Integration workflow
+# Runs on all pull requests and pushes to main
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ===========================================================================
+  # Python CI
+  # ===========================================================================
+  python-lint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        working-directory: services/python
+        run: uv sync --all-packages
+
+      - name: Run Ruff linter
+        working-directory: services/python
+        run: uv run ruff check .
+
+      - name: Run Ruff formatter check
+        working-directory: services/python
+        run: uv run ruff format --check .
+
+  python-test:
+    name: Python Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        working-directory: services/python
+        run: uv sync --all-packages
+
+      - name: Run tests
+        working-directory: services/python
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: services/python/coverage.xml
+          fail_ci_if_error: false
+
+  # ===========================================================================
+  # Rust CI
+  # ===========================================================================
+  rust-lint:
+    name: Rust Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/rust
+
+      - name: Run clippy
+        working-directory: services/rust
+        run: cargo clippy -- -D warnings
+
+      - name: Check formatting
+        working-directory: services/rust
+        run: cargo fmt --check
+
+  rust-test:
+    name: Rust Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/rust
+
+      - name: Run tests
+        working-directory: services/rust
+        run: cargo test
+
+  rust-build:
+    name: Rust Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/rust
+
+      - name: Build release
+        working-directory: services/rust
+        run: cargo build --release
+
+  # ===========================================================================
+  # Infrastructure validation
+  # ===========================================================================
+  tofu-validate:
+    name: OpenTofu Validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.6.0"
+
+      - name: Tofu Init
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: tofu init -backend=false
+
+      - name: Tofu Validate
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: tofu validate
+
+      - name: Tofu Format Check
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: tofu fmt -check -recursive

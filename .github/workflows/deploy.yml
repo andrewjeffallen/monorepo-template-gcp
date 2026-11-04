@@ -1,0 +1,160 @@
+# Deploy workflow
+# Builds and pushes Docker images, deploys infrastructure
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: false
+        default: 'all'
+
+env:
+  GCP_REGION: us-central1
+
+jobs:
+  # ===========================================================================
+  # Determine what changed
+  # ===========================================================================
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.changes.outputs.python }}
+      rust: ${{ steps.changes.outputs.rust }}
+      infra: ${{ steps.changes.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            python:
+              - 'services/python/**'
+            rust:
+              - 'services/rust/**'
+            infra:
+              - 'infra/**'
+
+  # ===========================================================================
+  # Build and push Python services
+  # ===========================================================================
+  build-python:
+    name: Build Python Services
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and push example-api
+        uses: docker/build-push-action@v5
+        with:
+          context: services/python
+          file: services/python/example-api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-api:${{ github.sha }}
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-api:latest
+
+  # ===========================================================================
+  # Build and push Rust services
+  # ===========================================================================
+  build-rust:
+    name: Build Rust Services
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and push example-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/rust
+          file: services/rust/example-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-service:${{ github.sha }}
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-service:latest
+
+  # ===========================================================================
+  # Deploy infrastructure
+  # ===========================================================================
+  deploy-infra:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch'
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.6.0"
+
+      - name: Tofu Init
+        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+        run: tofu init
+
+      - name: Tofu Plan
+        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+        run: tofu plan -var="project_id=${{ secrets.GCP_PROJECT_ID }}" -out=tfplan
+
+      - name: Tofu Apply
+        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+        run: tofu apply -auto-approve tfplan

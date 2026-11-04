@@ -1,0 +1,40 @@
+[project]
+name = "moose-labs-python"
+version = "0.1.0"
+description = "Moose Labs Python services workspace"
+requires-python = ">=3.11"
+
+[tool.uv]
+managed = true
+
+[tool.uv.workspace]
+members = ["example-api", "shared"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["example_api", "shared"]
+
+[tool.pytest.ini_options]
+testpaths = ["example-api/tests", "shared/tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
