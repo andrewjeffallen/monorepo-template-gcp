@@ -135,6 +135,118 @@ jobs:
         run: cargo build --release
 
   # ===========================================================================
+  # Hybrid Rust+Python Libraries (Maturin)
+  # ===========================================================================
+  libs-lint:
+    name: Libs Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: libs/trade-optimizer
+
+      - name: Run Rust clippy
+        working-directory: libs/trade-optimizer
+        run: cargo clippy -- -D warnings
+
+      - name: Check Rust formatting
+        working-directory: libs/trade-optimizer
+        run: cargo fmt --check
+
+      - name: Run Ruff on Python code
+        working-directory: libs/trade-optimizer
+        run: |
+          uv pip install ruff --system
+          ruff check python
+          ruff format --check python
+
+  libs-test:
+    name: Libs Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: libs/trade-optimizer
+
+      - name: Run Rust tests
+        working-directory: libs/trade-optimizer
+        run: cargo test
+
+      - name: Install maturin
+        run: uv pip install maturin --system
+
+      - name: Build and install with maturin
+        working-directory: libs/trade-optimizer
+        run: maturin develop
+
+      - name: Install test dependencies
+        working-directory: libs/trade-optimizer
+        run: uv pip install pytest pytest-benchmark hypothesis pandas polars --system
+
+      - name: Run Python tests
+        working-directory: libs/trade-optimizer
+        run: pytest tests -v
+
+  libs-build:
+    name: Build Wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: libs/trade-optimizer
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: libs/trade-optimizer/dist
+
+  # ===========================================================================
   # Infrastructure validation
   # ===========================================================================
   tofu-validate:

@@ -11,8 +11,8 @@ default:
 # Development Setup
 # =============================================================================
 
-# Install all dependencies (Python + Rust)
-setup: setup-python setup-rust
+# Install all dependencies (Python + Rust + hybrid libs)
+setup: setup-python setup-rust setup-libs
     @echo "Setup complete!"
 
 # Install Python dependencies
@@ -23,12 +23,16 @@ setup-python:
 setup-rust:
     cd services/rust && cargo build
 
+# Build and install hybrid Rust+Python libraries (Maturin)
+setup-libs:
+    cd libs/trade-optimizer && maturin develop --release
+
 # =============================================================================
 # Testing
 # =============================================================================
 
 # Run all tests
-test: test-python test-rust
+test: test-python test-rust test-libs
 
 # Run Python tests
 test-python *args:
@@ -37,6 +41,11 @@ test-python *args:
 # Run Rust tests
 test-rust *args:
     cd services/rust && cargo test {{args}}
+
+# Run hybrid library tests (both Rust and Python)
+test-libs *args:
+    cd libs/trade-optimizer && cargo test {{args}}
+    cd libs/trade-optimizer && maturin develop && pytest tests {{args}}
 
 # Run tests with coverage (Python)
 test-python-cov:
@@ -47,7 +56,7 @@ test-python-cov:
 # =============================================================================
 
 # Lint and format all code
-lint: lint-python lint-rust
+lint: lint-python lint-rust lint-libs
 
 # Lint Python code
 lint-python:
@@ -65,15 +74,25 @@ lint-rust:
 fmt-rust:
     cd services/rust && cargo fmt
 
+# Lint hybrid libraries
+lint-libs:
+    cd libs/trade-optimizer && cargo clippy -- -D warnings && cargo fmt --check
+    cd libs/trade-optimizer && ruff check python && ruff format --check python
+
+# Format hybrid libraries
+fmt-libs:
+    cd libs/trade-optimizer && cargo fmt
+    cd libs/trade-optimizer && ruff format python && ruff check --fix python
+
 # Format all code
-fmt: fmt-python fmt-rust
+fmt: fmt-python fmt-rust fmt-libs
 
 # =============================================================================
 # Building
 # =============================================================================
 
-# Build all services
-build: build-python build-rust
+# Build all services and libraries
+build: build-python build-rust build-libs
 
 # Build Python packages
 build-python:
@@ -82,6 +101,14 @@ build-python:
 # Build Rust binaries (release)
 build-rust:
     cd services/rust && cargo build --release
+
+# Build hybrid libraries as Python wheels
+build-libs:
+    cd libs/trade-optimizer && maturin build --release
+
+# Build hybrid libraries with all Python versions
+build-libs-all:
+    cd libs/trade-optimizer && maturin build --release --find-interpreter
 
 # =============================================================================
 # Docker
@@ -150,7 +177,21 @@ ci: lint test
 # Clean build artifacts
 clean:
     cd services/rust && cargo clean
+    cd libs/trade-optimizer && cargo clean
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name "target" -path "*/libs/*" -exec rm -rf {} + 2>/dev/null || true
+
+# =============================================================================
+# Benchmarks
+# =============================================================================
+
+# Run Rust benchmarks for hybrid libraries
+bench-libs:
+    cd libs/trade-optimizer && cargo bench
+
+# Run Python benchmarks for hybrid libraries
+bench-libs-python:
+    cd libs/trade-optimizer && maturin develop --release && pytest tests -v --benchmark-only

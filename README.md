@@ -7,6 +7,7 @@ Monorepo for experimental projects on GCP free tier.
 - [Just](https://github.com/casey/just) - Task runner
 - [uv](https://github.com/astral-sh/uv) - Python package manager
 - [Rust](https://rustup.rs/) - Rust toolchain
+- [Maturin](https://github.com/PyO3/maturin) - Rust+Python build tool (`pip install maturin`)
 - [Docker](https://www.docker.com/) - Container runtime
 - [OpenTofu](https://opentofu.org/) - Infrastructure as Code
 
@@ -38,6 +39,8 @@ moose-labs/
 │   └── environments/
 │       ├── dev/                # Development environment
 │       └── prod/               # Production environment
+├── libs/                       # Hybrid Rust+Python libraries (Maturin)
+│   └── trade-optimizer/        # Battery & trade optimization engine
 ├── services/
 │   ├── python/                 # Python services (uv workspace)
 │   │   ├── example-api/        # Example FastAPI service
@@ -158,6 +161,43 @@ For deployment workflows, configure these secrets:
 - `GCP_PROJECT_ID`: Your GCP project ID
 - `WIF_PROVIDER`: Workload Identity Federation provider
 - `WIF_SERVICE_ACCOUNT`: Service account for deployments
+
+## Hybrid Libraries (Rust + Python)
+
+The `libs/` directory contains high-performance Rust libraries with Python bindings via [Maturin](https://github.com/PyO3/maturin) and [PyO3](https://pyo3.rs/).
+
+### trade-optimizer
+
+Battery storage and trading optimization engine. Rust core for performance, Python for orchestration.
+
+```bash
+# Build and install for development
+just setup-libs
+
+# Or manually
+cd libs/trade-optimizer
+maturin develop --release
+```
+
+Usage:
+```python
+from trade_optimizer import BatteryOptimizer, BatteryConfig
+import numpy as np
+
+config = BatteryConfig(capacity_mwh=100.0, max_charge_rate_mw=25.0, max_discharge_rate_mw=25.0)
+optimizer = BatteryOptimizer(config)
+
+prices = np.array([20, 25, 80, 95, 60, 30], dtype=np.float64)
+schedule, revenue, final_soc = optimizer.optimize(prices, initial_soc=0.5)
+```
+
+### Adding a Hybrid Library
+
+1. Create directory: `libs/my-library/`
+2. Set up Maturin project with `Cargo.toml` and `pyproject.toml`
+3. Implement Rust core with PyO3 bindings in `src/`
+4. Add Python orchestration in `python/`
+5. Update `justfile` commands for the new library
 
 ## Adding New Services
 
