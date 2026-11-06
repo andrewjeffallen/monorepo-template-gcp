@@ -30,7 +30,7 @@ pub struct Settings {
     #[serde(default)]
     pub firestore_emulator_host: String,
 
-    /// PubSub emulator host (for local development)
+    /// `PubSub` emulator host (for local development)
     #[serde(default)]
     pub pubsub_emulator_host: String,
 }
@@ -39,7 +39,7 @@ fn default_environment() -> String {
     "development".to_string()
 }
 
-fn default_port() -> u16 {
+const fn default_port() -> u16 {
     8080
 }
 
@@ -56,6 +56,10 @@ impl Settings {
     ///
     /// Environment variables are expected to be uppercase with underscores,
     /// e.g., `GCP_PROJECT_ID`, `LOG_LEVEL`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if configuration cannot be built or deserialized.
     #[must_use]
     pub fn load() -> Self {
         Config::builder()
@@ -68,7 +72,7 @@ impl Settings {
 
     /// Check if running against emulators.
     #[must_use]
-    pub fn is_emulated(&self) -> bool {
+    pub const fn is_emulated(&self) -> bool {
         !self.firestore_emulator_host.is_empty() || !self.pubsub_emulator_host.is_empty()
     }
 }
