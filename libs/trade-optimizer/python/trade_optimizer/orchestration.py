@@ -300,26 +300,26 @@ class ResultExporter:
 ================================================================================
 
 Configuration:
-  Battery Capacity:     {results['metadata']['battery_capacity_mwh']:.1f} MWh
-  Initial SOC:          {results['metadata']['initial_soc']*100:.1f}%
-  Periods Optimized:    {results['metadata']['num_periods']}
-  Optimization Time:    {results['metadata']['optimization_time_ms']:.2f} ms
+  Battery Capacity:     {results["metadata"]["battery_capacity_mwh"]:.1f} MWh
+  Initial SOC:          {results["metadata"]["initial_soc"] * 100:.1f}%
+  Periods Optimized:    {results["metadata"]["num_periods"]}
+  Optimization Time:    {results["metadata"]["optimization_time_ms"]:.2f} ms
 
 Results:
-  Total Revenue:        ${analysis['total_revenue']:,.2f}
-  Final SOC:            {results['final_soc']*100:.1f}%
+  Total Revenue:        ${analysis["total_revenue"]:,.2f}
+  Final SOC:            {results["final_soc"] * 100:.1f}%
 
 Energy Summary:
-  Total Charged:        {analysis['total_charged_mwh']:.2f} MWh
-  Total Discharged:     {analysis['total_discharged_mwh']:.2f} MWh
-  Charge Periods:       {analysis['num_charge_periods']}
-  Discharge Periods:    {analysis['num_discharge_periods']}
-  Utilization:          {analysis['utilization_pct']:.1f}%
+  Total Charged:        {analysis["total_charged_mwh"]:.2f} MWh
+  Total Discharged:     {analysis["total_discharged_mwh"]:.2f} MWh
+  Charge Periods:       {analysis["num_charge_periods"]}
+  Discharge Periods:    {analysis["num_discharge_periods"]}
+  Utilization:          {analysis["utilization_pct"]:.1f}%
 
 Price Analysis:
-  Avg Charge Price:     ${analysis['avg_charge_price']:.2f}/MWh
-  Avg Discharge Price:  ${analysis['avg_discharge_price']:.2f}/MWh
-  Spread Captured:      ${analysis['price_spread_captured']:.2f}/MWh
+  Avg Charge Price:     ${analysis["avg_charge_price"]:.2f}/MWh
+  Avg Discharge Price:  ${analysis["avg_discharge_price"]:.2f}/MWh
+  Spread Captured:      ${analysis["price_spread_captured"]:.2f}/MWh
 
 ================================================================================
 """

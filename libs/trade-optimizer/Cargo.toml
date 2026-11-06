@@ -11,10 +11,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # PyO3 for Python bindings
-pyo3 = { version = "0.22", features = ["extension-module"] }
+pyo3 = "0.25"
 
 # Numerical computing
-numpy = "0.22"  # PyO3 numpy integration
+numpy = "0.25"  # PyO3 numpy integration
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -25,6 +25,10 @@ thiserror = "1.0"
 
 # Parallelism
 rayon = "1.10"
+
+[features]
+# Enabled by maturin (see pyproject.toml). Left off by default so `cargo test` can link libpython.
+extension-module = ["pyo3/extension-module"]
 
 [dev-dependencies]
 approx = "0.5"

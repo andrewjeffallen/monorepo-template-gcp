@@ -1,6 +1,6 @@
 //! Benchmarks for the trade optimizer
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use trade_optimizer::{BatteryConfig, BatteryOptimizer, TradeOptimizer};
 
 fn generate_prices(n: usize) -> Vec<f64> {
@@ -31,15 +31,13 @@ fn benchmark_battery_optimizer(c: &mut Criterion) {
     for size in [24, 168, 720, 8760].iter() {
         let prices = generate_prices(*size);
 
-        group.bench_with_input(
-            BenchmarkId::new("optimize", size),
-            &prices,
-            |b, prices| {
-                b.iter(|| {
-                    optimizer.optimize(black_box(prices), black_box(0.5)).unwrap()
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("optimize", size), &prices, |b, prices| {
+            b.iter(|| {
+                optimizer
+                    .optimize(black_box(prices), black_box(0.5))
+                    .unwrap()
+            });
+        });
     }
 
     group.finish();
@@ -57,9 +55,7 @@ fn benchmark_trade_optimizer(c: &mut Criterion) {
             BenchmarkId::new("find_opportunities", size),
             &prices,
             |b, prices| {
-                b.iter(|| {
-                    optimizer.find_opportunities(black_box(prices), black_box(24))
-                });
+                b.iter(|| optimizer.find_opportunities(black_box(prices), black_box(24)));
             },
         );
     }
@@ -67,5 +63,9 @@ fn benchmark_trade_optimizer(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_battery_optimizer, benchmark_trade_optimizer);
+criterion_group!(
+    benches,
+    benchmark_battery_optimizer,
+    benchmark_trade_optimizer
+);
 criterion_main!(benches);

@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: services/python
-        run: uv sync --all-packages
+        run: uv sync --all-packages --all-extras
 
       - name: Run Ruff linter
         working-directory: services/python
@@ -59,7 +59,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: services/python
-        run: uv sync --all-packages
+        run: uv sync --all-packages --all-extras
 
       - name: Run tests
         working-directory: services/python
@@ -172,9 +172,8 @@ jobs:
       - name: Run Ruff on Python code
         working-directory: libs/trade-optimizer
         run: |
-          uv pip install ruff --system
-          ruff check python
-          ruff format --check python
+          uvx ruff check python
+          uvx ruff format --check python
 
   libs-test:
     name: Libs Test
@@ -194,8 +193,12 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }} virtualenv
+        working-directory: libs/trade-optimizer
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -206,16 +209,13 @@ jobs:
         working-directory: libs/trade-optimizer
         run: cargo test
 
-      - name: Install maturin
-        run: uv pip install maturin --system
+      - name: Install maturin and test dependencies
+        working-directory: libs/trade-optimizer
+        run: uv pip install maturin pytest pytest-benchmark hypothesis pandas polars numpy
 
       - name: Build and install with maturin
         working-directory: libs/trade-optimizer
-        run: maturin develop
-
-      - name: Install test dependencies
-        working-directory: libs/trade-optimizer
-        run: uv pip install pytest pytest-benchmark hypothesis pandas polars --system
+        run: maturin develop --release
 
       - name: Run Python tests
         working-directory: libs/trade-optimizer

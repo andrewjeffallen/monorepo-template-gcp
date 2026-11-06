@@ -48,7 +48,8 @@ impl TradeOptimizer {
             let z_score = if std > 1e-6 {
                 (current_price - mean) / std
             } else {
-                0.0
+                // Flat window: any deviation is maximally significant; min_spread filters noise
+                (current_price - mean) * f64::INFINITY
             };
 
             // Generate signals based on z-score and minimum spread
@@ -156,8 +157,11 @@ impl TradeOptimizer {
         let mean_return: f64 = returns.iter().sum::<f64>() / returns.len() as f64;
         let excess_return = mean_return - risk_free_rate;
 
-        let variance =
-            returns.iter().map(|r| (r - mean_return).powi(2)).sum::<f64>() / returns.len() as f64;
+        let variance = returns
+            .iter()
+            .map(|r| (r - mean_return).powi(2))
+            .sum::<f64>()
+            / returns.len() as f64;
 
         let std = variance.sqrt();
 

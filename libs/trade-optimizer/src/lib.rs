@@ -13,7 +13,7 @@ mod battery;
 mod trade;
 mod types;
 
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use numpy::{AllowTypeChange, IntoPyArray, PyArray1, PyArrayLike1, PyReadonlyArray1};
 use pyo3::prelude::*;
 
 pub use battery::BatteryOptimizer;
@@ -121,7 +121,7 @@ impl PyBatteryOptimizer {
     fn optimize<'py>(
         &self,
         py: Python<'py>,
-        prices: PyReadonlyArray1<'py, f64>,
+        prices: PyArrayLike1<'py, f64, AllowTypeChange>,
         initial_soc: f64,
     ) -> PyResult<(Bound<'py, PyArray1<f64>>, f64, f64)> {
         let prices_slice = prices.as_slice()?;
@@ -140,8 +140,8 @@ impl PyBatteryOptimizer {
     /// Calculate expected revenue for a given dispatch schedule
     fn calculate_revenue<'py>(
         &self,
-        prices: PyReadonlyArray1<'py, f64>,
-        schedule: PyReadonlyArray1<'py, f64>,
+        prices: PyArrayLike1<'py, f64, AllowTypeChange>,
+        schedule: PyArrayLike1<'py, f64, AllowTypeChange>,
     ) -> PyResult<f64> {
         let prices_slice = prices.as_slice()?;
         let schedule_slice = schedule.as_slice()?;
@@ -176,7 +176,7 @@ impl PyTradeOptimizer {
     fn find_opportunities<'py>(
         &self,
         py: Python<'py>,
-        prices: PyReadonlyArray1<'py, f64>,
+        prices: PyArrayLike1<'py, f64, AllowTypeChange>,
         window_size: usize,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
         let prices_slice = prices.as_slice()?;
@@ -187,7 +187,7 @@ impl PyTradeOptimizer {
     /// Backtest trading strategy
     fn backtest<'py>(
         &self,
-        prices: PyReadonlyArray1<'py, f64>,
+        prices: PyArrayLike1<'py, f64, AllowTypeChange>,
         signals: PyReadonlyArray1<'py, i32>,
     ) -> PyResult<f64> {
         let prices_slice = prices.as_slice()?;
@@ -232,7 +232,7 @@ impl PyOptimizationResult {
 #[pyo3(signature = (prices, capacity_mwh, max_power_mw, initial_soc=0.5, efficiency=0.9))]
 fn optimize_battery_schedule<'py>(
     py: Python<'py>,
-    prices: PyReadonlyArray1<'py, f64>,
+    prices: PyArrayLike1<'py, f64, AllowTypeChange>,
     capacity_mwh: f64,
     max_power_mw: f64,
     initial_soc: f64,
@@ -262,7 +262,7 @@ fn optimize_battery_schedule<'py>(
 #[pyo3(signature = (prices, window_size=24, min_spread=5.0))]
 fn find_arbitrage_opportunities<'py>(
     py: Python<'py>,
-    prices: PyReadonlyArray1<'py, f64>,
+    prices: PyArrayLike1<'py, f64, AllowTypeChange>,
     window_size: usize,
     min_spread: f64,
 ) -> PyResult<Bound<'py, PyArray1<i32>>> {

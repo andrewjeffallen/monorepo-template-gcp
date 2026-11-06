@@ -39,8 +39,7 @@ impl BatteryOptimizer {
 
         if !(0.0..=1.0).contains(&initial_soc) {
             return Err(OptimizerError::InvalidInput(format!(
-                "Initial SOC must be between 0 and 1, got {}",
-                initial_soc
+                "Initial SOC must be between 0 and 1, got {initial_soc}"
             )));
         }
 
@@ -50,8 +49,8 @@ impl BatteryOptimizer {
 
         // Calculate price statistics for threshold-based decisions
         let mean_price: f64 = prices.iter().sum::<f64>() / n as f64;
-        let price_std = (prices.iter().map(|p| (p - mean_price).powi(2)).sum::<f64>() / n as f64)
-            .sqrt();
+        let price_std =
+            (prices.iter().map(|p| (p - mean_price).powi(2)).sum::<f64>() / n as f64).sqrt();
 
         let buy_threshold = mean_price - 0.5 * price_std;
         let sell_threshold = mean_price + 0.5 * price_std;
@@ -65,7 +64,10 @@ impl BatteryOptimizer {
             let available_discharge = (soc - self.config.min_soc) * self.config.capacity_mwh;
 
             // Look ahead to find better opportunities
-            let future_max = prices[i..].iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let future_max = prices[i..]
+                .iter()
+                .cloned()
+                .fold(f64::NEG_INFINITY, f64::max);
             let future_min = prices[i..].iter().cloned().fold(f64::INFINITY, f64::min);
 
             // Decision logic
@@ -79,20 +81,16 @@ impl BatteryOptimizer {
                 -charge_amount
             } else if price >= sell_threshold && available_discharge > 0.0 {
                 // Discharge when price is high
-                let discharge_amount = self
-                    .config
+                self.config
                     .max_discharge_rate_mw
                     .min(available_discharge)
-                    .min(self.config.capacity_mwh * 0.25);
-                discharge_amount
+                    .min(self.config.capacity_mwh * 0.25)
             } else if price >= future_max * 0.95 && available_discharge > 0.0 {
                 // Opportunistic sell near peak
-                let discharge_amount = self
-                    .config
+                self.config
                     .max_discharge_rate_mw
                     .min(available_discharge)
-                    .min(self.config.capacity_mwh * 0.2);
-                discharge_amount
+                    .min(self.config.capacity_mwh * 0.2)
             } else if price <= future_min * 1.05 && available_charge > 0.0 && remaining > 1 {
                 // Opportunistic buy near trough
                 let charge_amount = self

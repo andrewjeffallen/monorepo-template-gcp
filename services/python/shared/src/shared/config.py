@@ -34,9 +34,7 @@ class Settings(BaseSettings):
     def is_emulated(self) -> bool:
         """Check if running against emulators."""
         return bool(
-            self.firestore_emulator_host
-            or self.pubsub_emulator_host
-            or self.storage_emulator_host
+            self.firestore_emulator_host or self.pubsub_emulator_host or self.storage_emulator_host
         )
 
 
