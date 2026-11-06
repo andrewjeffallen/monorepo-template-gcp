@@ -1,4 +1,4 @@
-# Moose Labs
+# Monorepo Templates for Rust and Python
 
 Monorepo for experimental projects on GCP free tier.
 
