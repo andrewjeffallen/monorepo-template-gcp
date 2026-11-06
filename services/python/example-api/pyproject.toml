@@ -11,6 +11,9 @@ dependencies = [
     "shared",
 ]
 
+[tool.uv.sources]
+shared = { workspace = true }
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
