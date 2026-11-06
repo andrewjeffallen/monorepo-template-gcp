@@ -134,7 +134,7 @@ jobs:
     if: needs.changes.outputs.libs == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
