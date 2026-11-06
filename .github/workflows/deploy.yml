@@ -1,5 +1,12 @@
 # Deploy workflow
-# Builds and pushes Docker images, deploys infrastructure
+# Builds Docker images, wheels, and validates infrastructure.
+#
+# Nothing is pushed, applied, or published unless the repository variable
+# ENABLE_DEPLOY is set to 'true' (Settings -> Secrets and variables -> Actions
+# -> Variables). Without it, every job still runs as a dry run so the full
+# pipeline is exercised, but no GCP authentication or deployment happens.
+# This file is identical in the public template and in private repos created
+# from it; only the repo variable and secrets differ.
 
 name: Deploy
 
@@ -53,7 +60,7 @@ jobs:
               - 'infra/**'
 
   # ===========================================================================
-  # Build and push Python services
+  # Build (and, if ENABLE_DEPLOY, push) Python services
   # ===========================================================================
   build-python:
     name: Build Python Services
@@ -67,29 +74,44 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
+        if: vars.ENABLE_DEPLOY == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
+        if: vars.ENABLE_DEPLOY == 'true'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
+        if: vars.ENABLE_DEPLOY == 'true'
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build and push example-api
+      - name: Resolve image name
+        id: image
+        env:
+          ENABLE_DEPLOY: ${{ vars.ENABLE_DEPLOY }}
+          REGISTRY: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          if [ "$ENABLE_DEPLOY" = "true" ]; then
+            echo "name=$REGISTRY/example-api" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=example-api" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build example-api (push only if ENABLE_DEPLOY)
         uses: docker/build-push-action@v5
         with:
           context: services/python
           file: services/python/example-api/Dockerfile
-          push: true
+          push: ${{ vars.ENABLE_DEPLOY == 'true' }}
           tags: |
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-api:${{ github.sha }}
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-api:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
 
   # ===========================================================================
-  # Build and push Rust services
+  # Build (and, if ENABLE_DEPLOY, push) Rust services
   # ===========================================================================
   build-rust:
     name: Build Rust Services
@@ -103,29 +125,44 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
+        if: vars.ENABLE_DEPLOY == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
+        if: vars.ENABLE_DEPLOY == 'true'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
+        if: vars.ENABLE_DEPLOY == 'true'
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build and push example-service
+      - name: Resolve image name
+        id: image
+        env:
+          ENABLE_DEPLOY: ${{ vars.ENABLE_DEPLOY }}
+          REGISTRY: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          if [ "$ENABLE_DEPLOY" = "true" ]; then
+            echo "name=$REGISTRY/example-service" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=example-service" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build example-service (push only if ENABLE_DEPLOY)
         uses: docker/build-push-action@v5
         with:
           context: services/rust
           file: services/rust/example-service/Dockerfile
-          push: true
+          push: ${{ vars.ENABLE_DEPLOY == 'true' }}
           tags: |
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-service:${{ github.sha }}
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/moose-labs-${{ github.event.inputs.environment || 'dev' }}/example-service:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
 
   # ===========================================================================
-  # Build hybrid library wheels
+  # Build hybrid library wheels (artifacts only; no external credentials)
   # ===========================================================================
   build-libs:
     name: Build Library Wheels
@@ -155,12 +192,12 @@ jobs:
           name: wheels-${{ matrix.os }}
           path: libs/trade-optimizer/dist
 
-  # Publish wheels to PyPI (only on tags)
+  # Publish wheels to PyPI (only on tags, and only when ENABLE_DEPLOY)
   publish-libs:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: build-libs
-    if: startsWith(github.ref, 'refs/tags/trade-optimizer-')
+    if: vars.ENABLE_DEPLOY == 'true' && startsWith(github.ref, 'refs/tags/trade-optimizer-')
     permissions:
       id-token: write
     steps:
@@ -177,7 +214,7 @@ jobs:
           packages-dir: dist
 
   # ===========================================================================
-  # Deploy infrastructure
+  # Infrastructure: validate always, plan/apply only if ENABLE_DEPLOY
   # ===========================================================================
   deploy-infra:
     name: Deploy Infrastructure
@@ -191,25 +228,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: "1.6.0"
 
+      # Dry run (public template): validate only, no credentials or state needed
+      - name: Tofu Validate (dry run)
+        if: vars.ENABLE_DEPLOY != 'true'
+        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      # Real deploy (private repos with ENABLE_DEPLOY=true)
+      - name: Authenticate to Google Cloud
+        if: vars.ENABLE_DEPLOY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
       - name: Tofu Init
+        if: vars.ENABLE_DEPLOY == 'true'
         working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
         run: tofu init
 
       - name: Tofu Plan
+        if: vars.ENABLE_DEPLOY == 'true'
         working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
         run: tofu plan -var="project_id=${{ secrets.GCP_PROJECT_ID }}" -out=tfplan
 
       - name: Tofu Apply
+        if: vars.ENABLE_DEPLOY == 'true'
         working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
         run: tofu apply -auto-approve tfplan
